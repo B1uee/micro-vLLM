@@ -8,6 +8,7 @@ def apply_rotary_emb(
     cos: torch.Tensor,
     sin: torch.Tensor,
 ) -> torch.Tensor:
+    # 按复数对方式旋转一半维度。
     x1, x2 = torch.chunk(x.float(), 2, dim=-1)
     y1 = x1 * cos - x2 * sin
     y2 = x2 * cos + x1 * sin
@@ -56,6 +57,7 @@ def get_rope(
     base: float,
     rope_scaling: dict | None = None,
 ):
+    # 跨调用复用同一个 rotary 模块实例。
     assert rope_scaling is None
     rotary_emb = RotaryEmbedding(head_size, rotary_dim, max_position, base)
     return rotary_emb

@@ -33,6 +33,7 @@ class VocabParallelEmbedding(nn.Module):
 
     def forward(self, x: torch.Tensor):
         if self.tp_size > 1:
+            # 先屏蔽不属于当前 rank 词表分片的 token。
             mask = (x >= self.vocab_start_idx) & (x < self.vocab_end_idx)
             x = mask * (x - self.vocab_start_idx)
         y = F.embedding(x, self.weight)
@@ -56,10 +57,12 @@ class ParallelLMHead(VocabParallelEmbedding):
     def forward(self, x: torch.Tensor):
         context = get_context()
         if context.is_prefill:
+            # 预填充阶段只取每个序列最后一个 prompt 位置用于采样。
             last_indices = context.cu_seqlens_q[1:] - 1
             x = x[last_indices].contiguous()
         logits = F.linear(x, self.weight)
         if self.tp_size > 1:
+            # 将各 rank 的词表分片 logits 汇总到 rank 0 采样。
             all_logits = [torch.empty_like(logits) for _ in range(self.tp_size)] if self.tp_rank == 0 else None
             dist.gather(logits, all_logits, 0)
             logits = torch.cat(all_logits, -1) if self.tp_rank == 0 else None

@@ -65,6 +65,7 @@ class Qwen3Attention(nn.Module):
             self.num_kv_heads,
         )
         if not self.qkv_bias:
+            # 无 bias 的 Qwen 变体会对 q/k 做逐头 RMSNorm。
             self.q_norm = RMSNorm(self.head_dim, eps=rms_norm_eps)
             self.k_norm = RMSNorm(self.head_dim, eps=rms_norm_eps)
 
@@ -73,6 +74,7 @@ class Qwen3Attention(nn.Module):
         positions: torch.Tensor,
         hidden_states: torch.Tensor,
     ) -> torch.Tensor:
+        # 形状流： [N, hidden] -> q/k/v -> attention -> [N, hidden]
         qkv = self.qkv_proj(hidden_states)
         q, k, v = qkv.split([self.q_size, self.kv_size, self.kv_size], dim=-1)
         q = q.view(-1, self.num_heads, self.head_dim)
@@ -183,6 +185,7 @@ class Qwen3Model(nn.Module):
 
 
 class Qwen3ForCausalLM(nn.Module):
+    # HF 拆分权重到本项目并行打包层的映射表。
     packed_modules_mapping = {
         "q_proj": ("qkv_proj", "q"),
         "k_proj": ("qkv_proj", "k"),

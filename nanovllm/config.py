@@ -5,6 +5,7 @@ from transformers import AutoConfig
 
 @dataclass
 class Config:
+    # 调度器与执行器使用的运行时参数。
     model: str
     max_num_batched_tokens: int = 16384
     max_num_seqs: int = 512
@@ -18,6 +19,7 @@ class Config:
     num_kvcache_blocks: int = -1
 
     def __post_init__(self):
+        # 在入口严格校验，减少下游分支复杂度。
         assert os.path.isdir(self.model)
         assert self.kvcache_block_size % 256 == 0
         assert 1 <= self.tensor_parallel_size <= 8

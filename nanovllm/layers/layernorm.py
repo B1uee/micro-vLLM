@@ -31,6 +31,7 @@ class RMSNorm(nn.Module):
         x: torch.Tensor,
         residual: torch.Tensor,
     ) -> tuple[torch.Tensor, torch.Tensor]:
+        # 融合 residual add 与 RMSNorm，并返回下一层复用的 residual。
         orig_dtype = x.dtype
         x = x.float().add_(residual.float())
         residual = x.to(orig_dtype)

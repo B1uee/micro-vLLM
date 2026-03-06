@@ -12,6 +12,7 @@ class SequenceStatus(Enum):
 
 
 class Sequence:
+    # block_size 需与 Config.kvcache_block_size 默认值一致。
     block_size = 256
     counter = count()
 
@@ -72,6 +73,7 @@ class Sequence:
         self.num_tokens += 1
 
     def __getstate__(self):
+        # 优化进程间传输：decode 阶段仅传最后一个 token。
         return (self.num_tokens, self.num_prompt_tokens, self.num_cached_tokens, self.block_table,
                 self.token_ids if self.num_completion_tokens == 0 else self.last_token)
 

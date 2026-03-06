@@ -5,6 +5,7 @@ import torch.distributed as dist
 
 
 def divide(numerator, denominator):
+    # 保证张量并行切分是整除的。
     assert numerator % denominator == 0
     return numerator // denominator
 
@@ -63,6 +64,7 @@ class ColumnParallelLinear(LinearBase):
         super().__init__(input_size, divide(output_size, tp_size), bias, 0)
 
     def weight_loader(self, param: nn.Parameter, loaded_weight: torch.Tensor):
+        # 沿输出维切出当前 TP rank 对应分片。
         param_data = param.data
         shard_size = param_data.size(self.tp_dim)
         start_idx = self.tp_rank * shard_size
@@ -85,6 +87,7 @@ class MergedColumnParallelLinear(ColumnParallelLinear):
         super().__init__(input_size, sum(output_sizes), bias)
 
     def weight_loader(self, param: nn.Parameter, loaded_weight: torch.Tensor, loaded_shard_id: int):
+        # 将一个逻辑分片（如 gate/up）装载到合并张量中。
         param_data = param.data
         shard_offset = sum(self.output_sizes[:loaded_shard_id]) // self.tp_size
         shard_size = self.output_sizes[loaded_shard_id] // self.tp_size
@@ -112,6 +115,7 @@ class QKVParallelLinear(ColumnParallelLinear):
         super().__init__(hidden_size, output_size, bias)
 
     def weight_loader(self, param: nn.Parameter, loaded_weight: torch.Tensor, loaded_shard_id: str):
+        # 将 q/k/v 权重放到当前 TP rank 的打包偏移位置。
         param_data = param.data
         assert loaded_shard_id in ["q", "k", "v"]
         if loaded_shard_id == "q":
@@ -147,6 +151,7 @@ class RowParallelLinear(LinearBase):
         param_data.copy_(loaded_weight)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # 各 rank 先做局部 matmul，再 all-reduce 合并输出。
         y = F.linear(x, self.weight, self.bias if self.tp_rank == 0 else None)
         if self.tp_size > 1:
             dist.all_reduce(y)

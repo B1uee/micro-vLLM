@@ -4,8 +4,10 @@ from transformers import AutoTokenizer
 
 
 def main():
+    # 指向本地 Hugging Face 模型目录。
     path = os.path.expanduser("~/huggingface/Qwen3-0.6B/")
     tokenizer = AutoTokenizer.from_pretrained(path)
+    # LLM 只是 LLMEngine 的薄封装。
     llm = LLM(path, enforce_eager=True, tensor_parallel_size=1)
 
     sampling_params = SamplingParams(temperature=0.6, max_tokens=256)
@@ -23,6 +25,7 @@ def main():
     ]
     outputs = llm.generate(prompts, sampling_params)
 
+    # 输出对象同时包含解码文本和 token id。
     for prompt, output in zip(prompts, outputs):
         print("\n")
         print(f"Prompt: {prompt!r}")
