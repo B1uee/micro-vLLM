@@ -133,14 +133,19 @@ class ModelRunner:
         hf_config = config.hf_config
         free, total = torch.cuda.mem_get_info()
         used = total - free
+        # warmup 时记录的峰值
         peak = torch.cuda.memory_stats()["allocated_bytes.all.peak"]
         current = torch.cuda.memory_stats()["allocated_bytes.all.current"]
         num_kv_heads = hf_config.num_key_value_heads // self.world_size
+        # getattr(obj, "attr", default)：取对象属性；如果没有该属性就返回默认值。
         head_dim = getattr(hf_config, "head_dim", hf_config.hidden_size // hf_config.num_attention_heads)
+        # 单个 KV block 占多少字节
         block_bytes = 2 * hf_config.num_hidden_layers * self.block_size * num_kv_heads * head_dim * hf_config.torch_dtype.itemsize
-        # 用 warmup 峰值后剩余显存估算可用 KV block 数。
+        # （peak-current）：warmup 时出现过、但当前不在“常驻占用”里的临时峰值余量，即运行时所用显存
         config.num_kvcache_blocks = int(total * config.gpu_memory_utilization - used - peak + current) // block_bytes
         assert config.num_kvcache_blocks > 0
+        # 申请这块大张量（逻辑上一次性拿到），后续各层 attention 只拿视图引用，
+        # 不再逐token 动态申请整块 KV 内存
         self.kv_cache = torch.empty(2, hf_config.num_hidden_layers, config.num_kvcache_blocks, self.block_size, num_kv_heads, head_dim)
         layer_id = 0
         for module in self.model.modules():
